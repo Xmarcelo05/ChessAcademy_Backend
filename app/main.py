@@ -1,9 +1,3 @@
-"""
-app/main.py
-Archivo principal de la aplicación FastAPI
-Configura CORS, middleware, y registra routers
-"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -13,9 +7,7 @@ import logging
 import sys
 
 from app.core.config import settings
-from app.api import routes, websocket
-
-# ===================== CONFIGURACIÓN DE LOGGING =====================
+from app.api import routes
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -27,31 +19,16 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-
-# ===================== CICLO DE VIDA DE LA APP =====================
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Gestiona el ciclo de vida de la aplicación
-    startup: Al iniciar
-    shutdown: Al apagar
-    """
-    # STARTUP
-    logger.info(f"🚀 Iniciando {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Iniciando {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Ambiente: {settings.ENVIRONMENT}")
     logger.info(f"Orígenes CORS permitidos: {settings.get_allowed_origins}")
     yield
-    
-    # SHUTDOWN
-    logger.info("🛑 Apagando aplicación...")
-
-
-# ===================== CREAR APP FASTAPI =====================
+    logger.info("Apagando aplicación...")
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Backend API para Chess Academy - Landing Page de Cursos de Ajedrez",
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -59,34 +36,23 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-
-# ===================== MIDDLEWARE DE SEGURIDAD =====================
-
-# 1. Middleware CORS - Muy importante para Azure
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_allowed_origins,  # Solo dominios permitidos
-    allow_credentials=True,  # Permitir cookies/credenciales
+    allow_origins=settings.get_allowed_origins,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],  # Permitir todos los headers
+    allow_headers=["*"],
     expose_headers=["X-Total-Count", "X-Page", "X-Page-Size"],
-    max_age=3600,  # Cache de preflight por 1 hora
+    max_age=3600,
 )
 
-logger.info(f"✅ CORS configurado - Orígenes: {settings.get_allowed_origins}")
-
-# 2. Middleware de hosts confiables
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"]  # En producción, especificar dominios exactos
+    allowed_hosts=["*"]
 )
-
-
-# ===================== MANEJO DE ERRORES GLOBAL =====================
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Manejador global de excepciones"""
     logger.error(f"Error no capturado: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -97,21 +63,10 @@ async def global_exception_handler(request, exc):
         }
     )
 
-
-# ===================== REGISTRAR ROUTERS =====================
-
-# Routers de API REST
 app.include_router(routes.router)
-
-# Router de WebSocket
-app.include_router(websocket.router)
-
-
-# ===================== RUTAS RAÍZ =====================
 
 @app.get("/", tags=["Root"])
 async def root():
-    """Ruta raíz de la API"""
     return {
         "mensaje": "Bienvenido a Chess Academy API",
         "nombre": settings.APP_NAME,
@@ -120,14 +75,9 @@ async def root():
         "estado": "activo"
     }
 
-
 @app.options("/{full_path:path}", include_in_schema=False)
 async def preflight(full_path: str):
-    """Maneja peticiones OPTIONS para CORS preflight"""
     return JSONResponse(status_code=200)
-
-
-# ===================== INSTRUCCIONES =====================
 
 if __name__ == "__main__":
     import uvicorn
