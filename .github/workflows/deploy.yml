@@ -1,0 +1,150 @@
+name: Deploy to AWS App Runner
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  REGISTRY: public.ecr.aws
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          pytest --verbose --cov=app tests/
+        continue-on-error: true
+      
+      - name: Lint with flake8
+        run: |
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        continue-on-error: true
+      
+      - name: Type check with mypy
+        run: |
+          mypy app/
+        continue-on-error: true
+
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+      
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/chess-backend:latest .
+          docker tag ${{ env.REGISTRY }}/chess-backend:latest ${{ env.REGISTRY }}/chess-backend:${{ github.sha }}
+      
+      - name: Push image to ECR
+        run: |
+          docker push ${{ env.REGISTRY }}/chess-backend:latest
+          docker push ${{ env.REGISTRY }}/chess-backend:${{ github.sha }}
+
+  deploy:
+    name: Deploy to App Runner
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to App Runner
+        run: |
+          aws apprunner start-deployment \
+            --service-arn ${{ secrets.AWS_APPRUNNER_SERVICE_ARN }} \
+            --region ${{ env.AWS_REGION }}
+      
+      - name: Wait for deployment
+        run: |
+          SERVICE_ARN=${{ secrets.AWS_APPRUNNER_SERVICE_ARN }}
+          for i in {1..60}; do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn $SERVICE_ARN \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Service.Status' \
+              --output text)
+            
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "✅ Servicio está RUNNING"
+              break
+            fi
+            
+            echo "Esperando... (intento $i/60) - Estado: $STATUS"
+            sleep 10
+          done
+
+  notify:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Chess Backend Deploy ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Despliegue Chess Academy Backend*\n*Estado:* ${{ job.status }}\n*Rama:* ${{ github.ref }}\n*Commit:* ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()

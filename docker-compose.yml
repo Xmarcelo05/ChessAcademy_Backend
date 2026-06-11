@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  chess-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chess-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - AZURE_FRONTEND_URL=http://localhost:3000
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - .:/app
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - chess-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  chess-network:
+    driver: bridge
+
+# Comando para ejecutar:
+# docker-compose up -d
+# 
+# Para ver logs:
+# docker-compose logs -f chess-backend
+#
+# Para apagar:
+# docker-compose down

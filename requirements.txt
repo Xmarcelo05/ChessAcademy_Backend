@@ -1,0 +1,33 @@
+# FastAPI y ASGI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Validación de email
+email-validator==2.1.0
+
+# WebSockets
+websockets==12.0
+
+# Seguridad
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Utilidades
+python-dotenv==1.0.0
+httpx==0.25.2
+
+# Logging y monitoreo
+python-json-logger==2.0.7
+
+# Desarrollo (opcional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
+
+# Production
+gunicorn==21.2.0
