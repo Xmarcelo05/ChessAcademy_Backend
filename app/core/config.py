@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     @property
     def get_allowed_origins(self) -> List[str]:
         return [
-            "http://localhost:3000",   # Si usan React/Node local
-            "http://localhost:5500",   # Puerto típico de Live Server (VSCode)
-            "http://127.0.0.1:5500",   # Alternativa de Live Server
-            "http://localhost:8000",   # El propio backend
-            "https://kind-plant-0a0193f10.7.azurestaticapps.net"  # TU FRONTEND EN AZURE
+            "http://localhost:3000",   
+            "http://localhost:5500",   
+            "http://127.0.0.1:5500",  
+            "http://localhost:8000",   
+            "https://kind-plant-0a0193f10.7.azurestaticapps.net"  
         ]
 
 settings = Settings()
